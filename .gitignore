@@ -1,0 +1,9 @@
+logs/
+.env
+__pycache__/
+*.pyc
+*.pyo
+datalake/raw/*
+datalake/staged/*
+!datalake/raw/.gitkeep
+!datalake/staged/.gitkeep

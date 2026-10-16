@@ -1,0 +1,11 @@
+order_id,order_date,store_id,store_name,barangay,city,product_id,product_name,category,quantity,unit_price
+TX1001,2026-10-15,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P001,Instant Pancit Canton,Noodles,10,15.00
+TX1002,2026-10-15,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P002,3-in-1 Coffee,Beverages,5,28.00
+TX1003,2026-10-16,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P003,Canned Sardines,Canned Goods,4,35.00
+TX1004,2026-10-16,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P004,Softdrink 1.5L,Beverages,12,12.00
+TX1005,2026-10-17,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P005,Rice 1kg,Grains,2,
+TX1006,2026-10-17,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P006,Bath Soap,Personal Care,3,45.00
+TX1007,2026-10-18,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P007,Refined Cooking Oil,Groceries,2,60.00
+TX1008,2026-10-18,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P008,Sachet Shampoo,Personal Care,-5,8.00
+TX1009,2026-10-19,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P009,Dishwashing Liquid,Household,4,38.00
+TX1010,2026-10-19,STORE_04,San Jose Mini Mart,Barangay San Jose,Manila,P010,White Sugar 1kg,Groceries,2,50.00
