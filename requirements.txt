@@ -1,3 +1,3 @@
 pandas
 pyarrow
-
+duckdb #for Extension B: DuckDB on the lake
