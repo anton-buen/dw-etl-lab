@@ -237,12 +237,13 @@ def sarisari_sales_etl():
                 "SELECT COUNT(*) = 0 FROM dw.fact_sales "
                 "WHERE line_total <> ROUND(quantity * unit_price, 2)"
             ),
-            # Exercise 2
+            
+            # Exercise 2: Category retail boundary check
             "noodle products under 35 PHP": (
                 "SELECT COUNT(*) = 0 "
                 "FROM dw.fact_sales f "
                 "JOIN dw.dim_product p USING (product_key) "
-                "WHERE p.category ILIKE 'Noodles' AND f.unit_price > 35.00"
+                "WHERE TRIM(p.category) ILIKE 'Noodles' AND f.unit_price > 35.00"
             ),
         }
         failed = [
