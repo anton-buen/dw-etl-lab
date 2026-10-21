@@ -146,7 +146,7 @@ def sarisari_sales_etl():
                     TRIM(city) AS city,
                     TRIM(product_id) AS product_id,
                     TRIM(product_name) AS product_name,
-                    INITCAP(TRIM(category)) AS category,
+                    TRIM(category) AS category,
                     TRY_CAST(TRIM(quantity) AS DOUBLE) AS raw_qty,
                     TRY_CAST(TRIM(unit_price) AS NUMERIC(10,2)) AS unit_price
                 FROM read_csv({paths_sql}, header=true, all_varchar=true)
