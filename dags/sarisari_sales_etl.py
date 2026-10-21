@@ -112,30 +112,93 @@ def sarisari_sales_etl():
 
     @task
     def transform(raw: dict) -> dict:
-        """T: clean and type the raw rows, write Parquet to the staged zone."""
-        df = pd.concat((pd.read_csv(p, dtype=str) for p in raw["files"]), ignore_index=True)
-        rows_in = len(df)
-        df = df.apply(lambda col: col.str.strip())  # stray spaces
-        df["category"] = df["category"].str.title()  # 'canned goods' -> 'Canned Goods'
-        df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce").dt.date
+        """T: clean and type raw rows via DuckDB, write Parquet to the staged zone."""
+        import time
+        import duckdb
 
-        df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce")
-        df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce")
-        required = ["order_id", "order_date", "store_id", "product_id", "quantity", "unit_price"]
-        df = df.dropna(subset=required)  # missing values
-        df = df[(df["quantity"] > 0) & (df["unit_price"] >= 0)]  # impossible values
+        start_time = time.perf_counter()
+        raw_files = raw["files"]
+        batch_id = raw["batch_id"]
 
-        df = df.drop_duplicates(subset=["order_id", "product_id"], keep="first")  # duplicates
-
-        df["quantity"] = df["quantity"].astype(int)
-        df["line_total"] = (df["quantity"] * df["unit_price"]).round(2)
-        df["batch_id"] = raw["batch_id"]
-        out = STAGED / f"batch={raw['batch_id']}" / "sales_clean.parquet"
+        out = STAGED / f"batch={batch_id}" / "sales_clean.parquet"
         out.parent.mkdir(parents=True, exist_ok=True)
-        df[STG_COLUMNS].to_parquet(out, index=False)
-        print(f"Rows in: {rows_in}, rows kept: {len(df)}, rejected: {rows_in - len(df)}")
 
-        return {"batch_id": raw["batch_id"], "path": str(out), "rows_in": rows_in, "rows_out": len(df)}
+        # Format Python list into DuckDB SQL array: ['path1','path2']
+        paths_sql = "[" + ", ".join(f"'{p}'" for p in raw_files) + "]"
+
+        con = duckdb.connect()
+        
+        # Count incoming raw rows from CSVs in data lake
+        total_raw = con.execute(
+            f"SELECT COUNT(*) FROM read_csv({paths_sql}, header=true, all_varchar=true)"
+        ).fetchone()[0]
+
+        # Vectorized SQL transformation, cleaning, validation, and Parquet export
+        transform_query = f"""
+        COPY (
+            WITH cleaned AS (
+                SELECT 
+                    TRIM(order_id) AS order_id,
+                    TRY_CAST(TRIM(order_date) AS DATE) AS order_date,
+                    TRIM(store_id) AS store_id,
+                    TRIM(store_name) AS store_name,
+                    TRIM(barangay) AS barangay,
+                    TRIM(city) AS city,
+                    TRIM(product_id) AS product_id,
+                    TRIM(product_name) AS product_name,
+                    INITCAP(TRIM(category)) AS category,
+                    TRY_CAST(TRIM(quantity) AS DOUBLE) AS raw_qty,
+                    TRY_CAST(TRIM(unit_price) AS NUMERIC(10,2)) AS unit_price
+                FROM read_csv({paths_sql}, header=true, all_varchar=true)
+            ),
+            filtered AS (
+                SELECT 
+                    order_id, order_date, store_id, store_name, barangay, city,
+                    product_id, product_name, category,
+                    CAST(raw_qty AS INTEGER) AS quantity,
+                    unit_price,
+                    ROUND(CAST(raw_qty AS INTEGER) * unit_price, 2) AS line_total,
+                    '{batch_id}' AS batch_id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY order_id, product_id 
+                        ORDER BY order_id
+                    ) AS dedup_rank
+                FROM cleaned
+                WHERE order_id IS NOT NULL 
+                  AND order_date IS NOT NULL 
+                  AND store_id IS NOT NULL 
+                  AND product_id IS NOT NULL 
+                  AND raw_qty IS NOT NULL 
+                  AND unit_price IS NOT NULL
+                  AND raw_qty > 0 
+                  AND unit_price >= 0
+            )
+            SELECT 
+                order_id, order_date, store_id, store_name, barangay, city,
+                product_id, product_name, category, quantity, unit_price,
+                line_total, batch_id
+            FROM filtered
+            WHERE dedup_rank = 1
+        ) TO '{str(out)}' (FORMAT PARQUET);
+        """
+
+        con.execute(transform_query)
+
+        # Verify staged Parquet row count, then calculate benchmark
+        kept_rows = con.execute(f"SELECT COUNT(*) FROM read_parquet('{str(out)}')").fetchone()[0]
+        elapsed = time.perf_counter() - start_time
+        rejected = total_raw - kept_rows
+
+        print(f"[DuckDB Transform] Rows in: {total_raw}, kept: {kept_rows}, rejected: {rejected}")
+        print(f"[DuckDB Benchmark] Execution time: {elapsed:.4f} seconds")
+
+        return {
+            "batch_id": batch_id,
+            "path": str(out),
+            "rows_in": total_raw,
+            "rows_out": kept_rows,
+            "execution_time_sec": elapsed,
+        }
 
     @task
     def load(staged: dict) -> dict:
